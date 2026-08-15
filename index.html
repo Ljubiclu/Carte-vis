@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>VIS — Carte de bord</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="Carte de bord de l'île de Vis, Croatie — restaurants, plages et lieux à voir, avec recommandations personnelles.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --ink:#0A1D2B;
+    --ink-2:#123049;
+    --ink-3:#1B3E5C;
+    --island:#E7DCBE;
+    --parchment:#EDE3CC;
+    --parchment-dim:#C9BFA6;
+    --brass:#C9A227;
+    --brass-bright:#E8C55A;
+    --terracotta:#C1603C;
+    --turquoise:#3FA7AE;
+    --pine:#6B8A5C;
+    --line: rgba(201,162,39,0.28);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0;
+    height:100%; width:100%;
+    background:var(--ink);
+    font-family:'Public Sans', sans-serif;
+    color:var(--parchment);
+    overflow:hidden;
+    overscroll-behavior:none;
+    position:fixed; inset:0;
+  }
+
+  #map{ position:fixed; inset:0; z-index:1; background:var(--ink); }
+
+  /* Teinte "carte ancienne" appliquée aux tuiles réelles, pour garder l'ambiance
+     carte au trésor tout en montrant le vrai niveau de détail (rues incluses). */
+  .leaflet-tile-pane{
+    filter: sepia(0.55) saturate(1.6) hue-rotate(-8deg) brightness(0.92) contrast(1.08);
+  }
+  .leaflet-container{ background: #0B2438; font-family:'Public Sans', sans-serif; }
+  .leaflet-control-attribution{
+    background: rgba(10,29,43,0.75) !important;
+    color: var(--parchment-dim) !important;
+    font-family:'JetBrains Mono', monospace; font-size:9px !important;
+    border-radius: 4px 0 0 0;
+  }
+  .leaflet-control-attribution a{ color: var(--brass-bright) !important; }
+  .leaflet-control-zoom{ display:none; } /* on utilise nos propres boutons */
+
+  /* ---- Marqueurs personnalisés ---- */
+  .vis-pin{ display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .vis-pin .base{
+    width:100%; height:100%; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    border: 2px solid var(--parchment);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+  }
+  .vis-pin.hero .base{ border: 2.6px solid var(--brass-bright); }
+  .vis-pin .star{
+    position:absolute; top:-6px; right:-6px;
+    font-size:12px; color: var(--brass-bright);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .vis-pin.dim{ opacity:0.12; pointer-events:none; }
+
+  /* ---- Header cartouche ---- */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:1000;
+    padding: max(16px, env(safe-area-inset-top)) 16px 0 16px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none;
+  }
+  .cartouche{
+    pointer-events:auto;
+    background: linear-gradient(180deg, var(--ink-2), var(--ink));
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    max-width: 74vw;
+  }
+  .cartouche .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--brass);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .cartouche h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size: clamp(19px, 5vw, 28px);
+    margin: 0;
+    letter-spacing: 0.01em;
+    color: var(--parchment);
+  }
+  .cartouche p{
+    margin: 4px 0 0 0;
+    font-size: 11.5px;
+    color: var(--parchment-dim);
+    max-width: 32ch;
+  }
+
+  .compass{
+    pointer-events:none;
+    width: 42px; height: 42px;
+    flex-shrink:0;
+    opacity:0.9;
+    animation: sway 9s ease-in-out infinite;
+  }
+  @keyframes sway{
+    0%,100%{ transform: rotate(-4deg); }
+    50%{ transform: rotate(4deg); }
+  }
+
+  /* ---- Zoom controls ---- */
+  #zoomCtl{
+    position:fixed; z-index:1000; right:16px; top:50%; transform: translateY(-50%);
+    display:flex; flex-direction:column; gap:2px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+    border-radius: 8px; overflow:hidden;
+  }
+  #zoomCtl button{
+    width:40px; height:40px; background: var(--ink-2); color:var(--brass-bright);
+    border:1px solid var(--line); font-size:19px; font-weight:700;
+    -webkit-user-select:none; user-select:none;
+  }
+  #zoomCtl button:active{ background: var(--ink-3); }
+  #zoomCtl #zoomReset{ font-size:13px; font-weight:600; }
+
+  /* ---- Filter legend ---- */
+  #legend{
+    position:fixed; z-index:1000;
+    left:16px; bottom: max(16px, env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:6px;
+    pointer-events:auto;
+  }
+  .pill{
+    font-family:'Public Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight:600;
+    color: var(--parchment);
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 14px 8px 10px;
+    display:flex; align-items:center; gap:8px;
+    cursor:pointer;
+    user-select:none;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    transition: opacity .15s ease, transform .15s ease;
+    white-space:nowrap;
+  }
+  .pill:active{ transform: scale(0.97); }
+  .pill.off{ opacity: 0.38; }
+  .pill .dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .pill .count{ font-family:'JetBrains Mono', monospace; color: var(--parchment-dim); font-size:11px; }
+
+  #starnote{
+    position:fixed; z-index:1000; left:16px; bottom:172px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10.5px; color: var(--brass-bright);
+    background: var(--ink-2); border:1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }
+
+  #listToggle{
+    position:fixed; z-index:1000; right:16px; bottom: max(16px, env(safe-area-inset-bottom));
+    background: var(--brass-bright); color: var(--ink);
+    font-family:'Public Sans', sans-serif; font-weight:700; font-size:13px;
+    border:none; border-radius: 999px; padding: 12px 18px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+    display:flex; align-items:center; gap:6px;
+  }
+
+  /* ---- Bottom sheet ---- */
+  #sheet{
+    position:fixed; z-index:1500; left:0; right:0; bottom:0;
+    background: var(--ink-2);
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+    max-height: 74vh;
+    transform: translateY(100%);
+    transition: transform .28s ease;
+    display:flex; flex-direction:column;
+  }
+  #sheet.open{ transform: translateY(0); }
+  #sheetHandle{
+    width:36px; height:4px; background: var(--line); border-radius:2px;
+    margin: 10px auto 6px auto;
+  }
+  #sheetHead{
+    padding: 0 18px 10px 18px; display:flex; justify-content:space-between; align-items:center;
+    border-bottom: 1px solid var(--line);
+  }
+  #sheetHead h2{ font-family:'Fraunces', serif; font-size:17px; margin:0; }
+  #sheetClose, #sheetBack{ background:none; border:none; color:var(--brass); font-size:22px; padding:4px; font-family:inherit; }
+  #sheetBack{ font-size:14px; font-weight:700; display:none; align-items:center; gap:4px; }
+  #sheetBody{ overflow-y:auto; padding: 8px 10px 28px 10px; -webkit-overflow-scrolling:touch; }
+
+  .row{
+    display:flex; gap:12px; align-items:flex-start;
+    padding: 10px 8px; border-radius: 8px; cursor:pointer;
+  }
+  .row:active{ background: var(--ink-3); }
+  .row .rdot{
+    width:26px; height:26px; border-radius:50% 50% 50% 0; transform: rotate(-45deg);
+    flex-shrink:0; margin-top:2px; display:flex; align-items:center; justify-content:center;
+    border: 1.5px solid var(--parchment);
+  }
+  .row .rdot svg{ width:12px; height:12px; transform: rotate(45deg); }
+  .row .rname{ font-weight:700; font-size:13.5px; color:var(--parchment); }
+  .row .rsub{ font-size:11.5px; color:var(--parchment-dim); margin-top:1px; }
+
+  .pc{ padding: 0 0 10px 0; }
+  .pc-placeholder{
+    width:100%; height:170px; border-radius:16px 16px 0 0;
+    position:relative; overflow:hidden;
+  }
+  .pc-placeholder svg{ width:100%; height:100%; display:block; }
+  .pc-body{ padding: 12px 16px 6px 16px; }
+  .pc-eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:10px;
+    letter-spacing:0.14em; text-transform:uppercase; color: var(--brass);
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:6px;
+  }
+  .pc h3{
+    font-family:'Fraunces', serif; font-weight:600; font-size:20px;
+    margin: 0 0 8px 0; color: var(--parchment); line-height:1.2;
+  }
+  .pc p{ font-size:13px; line-height:1.55; color: var(--parchment-dim); margin: 0 0 10px 0; }
+  .pc .meta{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .tag{
+    font-family:'JetBrains Mono', monospace; font-size:11px;
+    border: 1px solid var(--line); border-radius:4px; padding:3px 8px;
+    color: var(--parchment-dim);
+  }
+  .pc .rec{
+    font-size:12.5px; font-style: italic; color: var(--brass-bright);
+    border-left: 2px solid var(--brass); padding-left:10px; margin-bottom:14px;
+  }
+  .pc a.gmaps{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:'Public Sans', sans-serif; font-weight:700; font-size:13px;
+    color: var(--ink); background: var(--brass-bright);
+    padding: 9px 14px; border-radius: 6px; text-decoration:none;
+  }
+
+  @media (min-width: 760px){
+    #legend{ flex-direction:row; }
+    #starnote{ left:auto; right:200px; bottom:18px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<header>
+  <div class="cartouche">
+    <div class="eyebrow">Otok Vis · 43.05°N 16.15°E</div>
+    <h1>Carte de bord — Vis</h1>
+    <p>Restaurants, plages et lieux à voir, avec mes recommandations. Zoomez pour voir les rues.</p>
+  </div>
+  <svg class="compass" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="46" fill="none" stroke="#C9A227" stroke-width="1.5" opacity="0.6"/>
+    <circle cx="50" cy="50" r="38" fill="none" stroke="#C9A227" stroke-width="0.75" opacity="0.4"/>
+    <path d="M50 8 L58 50 L50 92 L42 50 Z" fill="#E8C55A"/>
+    <path d="M8 50 L50 42 L92 50 L50 58 Z" fill="#EDE3CC" opacity="0.85"/>
+    <circle cx="50" cy="50" r="4" fill="#0A1D2B" stroke="#E8C55A" stroke-width="1.5"/>
+    <text x="50" y="14" text-anchor="middle" fill="#E8C55A" font-size="9" font-family="JetBrains Mono">N</text>
+  </svg>
+</header>
+
+<div id="zoomCtl">
+  <button id="zoomIn">+</button>
+  <button id="zoomReset">⟳</button>
+  <button id="zoomOut">−</button>
+</div>
+
+<div id="starnote">★ = mes coups de cœur</div>
+<div id="legend"></div>
+<button id="listToggle">☰ Liste des lieux</button>
+
+<div id="sheet">
+  <div id="sheetHandle"></div>
+  <div id="sheetHead">
+    <button id="sheetBack">← Retour</button>
+    <h2 id="sheetTitle">Tous les lieux</h2>
+    <button id="sheetClose">✕</button>
+  </div>
+  <div id="sheetBody"></div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   DONNÉES — Île de Vis, Croatie
+--------------------------------------------------------------- */
+const CATEGORIES = {
+  resto: { label:"Restaurants", color:"#C1603C", icon: iconFork() },
+  plage: { label:"Plages", color:"#3FA7AE", icon: iconWave() },
+  vue:   { label:"Vues & patrimoine", color:"#6B8A5C", icon: iconStarPin() },
+};
+function iconFork(){ return `<path d="M-4.5 -5.5v5a1.5 1.5 0 0 0 3 0v-5M-3 -0.5v6M4 -5.5c-1.6 0-2.2 1.6-2.2 3.7S2.4 1.9 4 1.9s2.2-1.5 2.2-3.7S5.6 -5.5 4 -5.5Zm0 7.4v3.6" stroke="#0A1D2B" stroke-width="1.3" fill="none" stroke-linecap="round"/>`; }
+function iconWave(){ return `<path d="M-6 -1c1.2-1.6 2.6-1.6 3.8 0s2.6 1.6 3.8 0 2.6-1.6 3.8 0M-6 2.6c1.2-1.6 2.6-1.6 3.8 0s2.6 1.6 3.8 0 2.6-1.6 3.8 0" stroke="#0A1D2B" stroke-width="1.3" fill="none" stroke-linecap="round"/><circle cx="0" cy="-5" r="1.8" fill="#0A1D2B"/>`; }
+function iconStarPin(){ return `<path d="M0 -6l2 4.6 5 .4-3.8 3.2 1.2 4.9L0 3.9l-4.4 2.7 1.2-4.9L-7 -1l5-.4Z" fill="#0A1D2B"/>`; }
+
+const PLACES = [
+  {cat:"resto", name:"Konoba Roki's Fire", lat:43.0594258, lng:16.1561269, place_id:"ChIJcUVbnmqWNRMRj1apG0T9xNw", price:"€€€€", zone:"Dol, à l'intérieur des terres", desc:"La table la plus mythique de l'île : peka de poulpe cuite sous la cloche de braises, four à bois traditionnel, ambiance familiale. Navette proposée depuis Vis.", rec:"Réservez et pré-commandez la peka au moins la veille — c'est indispensable ici.", hero:true},
+  {cat:"resto", name:"Pojoda Restaurant", lat:43.0581199, lng:16.1988121, place_id:"ChIJvZn9yqiXNRMRct1d_EM11us", price:"€€€€", zone:"Kut, Vis ville", desc:"Jardin sous les citronniers, cuisine de poisson frais choisi à la table, belle carte de vugava (cépage local blanc de Vis).", rec:"Demandez la sélection du jour au poids plutôt que la carte — c'est là qu'est la qualité."},
+  {cat:"resto", name:"Lola Konoba & Bar", lat:43.0594333, lng:16.1858295, place_id:"ChIJFey8-baXNRMRGggc2gCpVN8", price:"€€€€", zone:"Vis ville", desc:"Cuisine créative méditerranéenne dans un cadre soigné, cocktails travaillés, huile d'olive maison à ne pas manquer.", rec:"Un excellent choix pour un dîner un peu plus habillé qu'une konoba classique.", hero:true},
+  {cat:"resto", name:"Mamma Mia — Specialty Coffee & Brunch", lat:43.0601921, lng:16.1841297, place_id:"ChIJ_5V_QdeXNRMR_EJn7cLl3T4", price:"€€", zone:"Vis ville, centre", desc:"Le meilleur petit-déjeuner de l'île, ruelle discrète près du port, déco soignée, options végétariennes.", rec:"Pour un matin tranquille avant de partir en excursion — arrivez tôt en haute saison."},
+  {cat:"resto", name:"Fort George — Sunset Roof Bar", lat:43.0739591, lng:16.1965975, place_id:"ChIJLw72c5mXNRMRnGKsszf0U88", price:"€€€", zone:"Fortin autrichien, au-dessus de Vis ville", desc:"Dîner dans une forteresse du XIXe siècle avec vue sur Hvar et Brač ; aussi un excellent rooftop pour le coucher de soleil.", rec:"Montez tôt pour visiter le musée et le toit avant le service du soir.", hero:true},
+  {cat:"resto", name:"Peškarija 1911", lat:43.0591926, lng:16.1874856, place_id:"ChIJf6tuXuCXNRMR4Zk3yK0JNNg", price:"€€€€", zone:"Riva, Vis ville", desc:"Ancienne halle aux poissons transformée en table gastronomique autour d'un comptoir en pierre centenaire ; cuisine créative et très travaillée.", rec:"La meilleure adresse de fine dining sur l'île — réservation quasi obligatoire en été.", hero:true},
+  {cat:"resto", name:"Konoba Bilka", lat:43.0628134, lng:16.1834049, place_id:"ChIJncbMjoKXNRMRgamDLm0DK74", price:"€€€", zone:"Vis ville", desc:"Terrasse ombragée sous les arbres fruitiers, cuisson au feu de bois à vue, agneau et burrata particulièrement réputés.", rec:"Idéal pour un dîner convivial en extérieur, un cran plus décontracté que Peškarija."},
+  {cat:"resto", name:"Restaurant Val 2.0", lat:43.0583250, lng:16.1985178, place_id:"ChIJ9xL0v2-XNRMRiYLaSvKs9zI", price:"€€€", zone:"Kut, à côté de Pojoda", desc:"Ouverture récente très réussie, patio à ciel ouvert, joues de bœuf et risotto à l'encre de seiche remarqués.", rec:"Bonne alternative si Pojoda est complet — juste à côté."},
+  {cat:"resto", name:"Dal Mare", lat:43.0441373, lng:16.0892738, place_id:"ChIJ5ZJGPNi9NRMR_M0dnGNnrTk", price:"€€", zone:"Riva, Komiža", desc:"Adresse chaleureuse en front de mer à Komiža, gnocchis à la truffe et service très attentionné.", rec:"Une valeur sûre à Komiža, sur la riva face au coucher de soleil."},
+  {cat:"resto", name:"Fabrika Pizza & Pasta", lat:43.0440179, lng:16.0888569, place_id:"ChIJPa6ufU69NRMRsX9ECda5pN4", price:"€€", zone:"Riva, Komiža", desc:"Emplacement imprenable sur le port de Komiža, pâtes aux fruits de mer et pizzas au feu de bois très soignées.", rec:"Parfait pour dîner face au soleil couchant sur les bateaux de pêche.", hero:true},
+  {cat:"resto", name:"Konoba Barba", lat:43.0467666, lng:16.0870465, place_id:"ChIJSTzdaBW8NRMRc3JbHOze1F4", price:"€€€€", zone:"Komiža", desc:"Poisson au poids avec vue sur le port de Komiža, pain maison et bonne huile d'olive.", rec:"Demandez le poisson du jour présenté à table avant de commander."},
+  {cat:"resto", name:"Jastožera Tavern", lat:43.0466085, lng:16.0866383, place_id:"ChIJLYErbxW8NRMRhwYRMKXvVik", price:"€€€€", zone:"Komiža, sur pilotis", desc:"Spécialiste du homard pêché dans son propre vivier, salle en arche de brique posée sur l'eau.", rec:"L'expérience homard la plus authentique de l'île — réservez la table 'Mamma Mia' près de l'eau."},
+
+  {cat:"plage", name:"Stiniva", lat:43.0213823, lng:16.1715648, place_id:"ChIJLULeywiWNRMRwLTnLfBCkqk", price:"", zone:"Côte sud, accès à pied ou en bateau", desc:"Crique cachée entre deux parois rocheuses, souvent citée parmi les plus belles plages d'Europe. Accès par un sentier de 20 minutes assez raide.", rec:"Venez tôt le matin — la foule et les bateaux arrivent en milieu de journée.", hero:true},
+  {cat:"plage", name:"Srebrna", lat:43.0205077, lng:16.2055618, place_id:"ChIJj-_GVX2WNRMRZXezffqx6dg", price:"", zone:"Rukavac, côte sud", desc:"Galets blancs et eau turquoise, entourée d'une pinède ombragée, considérée par beaucoup comme la plus belle plage de l'île.", rec:"Prenez un coussin ou une serviette épaisse, les galets sont gros.", hero:true},
+  {cat:"plage", name:"Prirovo", lat:43.0632206, lng:16.1890193, place_id:"ChIJucdbwLuXNRMRFrziZS2pZTM", price:"", zone:"Vis ville, à pied du port", desc:"Petite plage de galets à deux pas du centre-ville, vue sur l'église et le port, pratique en attendant un ferry.", rec:"Le meilleur compromis si vous logez en ville et voulez une baignade rapide."},
+  {cat:"plage", name:"Grandovac", lat:43.0683614, lng:16.2061902, place_id:"ChIJJ_8YtAqXNRMRrdsFVUZWIIo", price:"", zone:"15 min à pied de Vis ville", desc:"Plage naturelle sans aucune infrastructure, eau limpide, petit bunker abandonné à proximité.", rec:"Pour un moment plus sauvage, à 15 minutes de marche du centre."},
+  {cat:"plage", name:"Gusarica", lat:43.0477111, lng:16.0853836, place_id:"ChIJjU4IMBW8NRMRX2eKxGKQXBY", price:"", zone:"Komiža", desc:"Belle plage publique de Komiža, zone de baignade balisée, bar de plage et location de kayak/SUP.", rec:"Meilleure option ombragée que Kamenica si vous êtes basé à Komiža."},
+  {cat:"plage", name:"Zaglav", lat:43.0326185, lng:16.2285930, place_id:"ChIJATiqAMKWNRMRApTpX-f_3vo", price:"", zone:"Milna, côte sud-est", desc:"Grande plage à dominante de sable, idéale pour les familles, bar-restaurant sur place.", rec:"À combiner avec Milna, à 12 minutes à pied le long de la côte."},
+  {cat:"plage", name:"Milna", lat:43.0403752, lng:16.2305832, place_id:"ChIJoY5Ex92WNRMRs43oAsfOZ18", price:"", zone:"Sud-est de l'île", desc:"L'une des rares plages de sable de Vis, eau turquoise peu profonde, location de kayak et navette vers l'îlot de Budikovac.", rec:"Très adaptée aux enfants grâce au fond sableux et à l'eau calme."},
+  {cat:"plage", name:"Perna", lat:43.0465360, lng:16.0599414, place_id:"ChIJhyg3l_a7NRMR0EqPmWEVgiw", price:"", zone:"Ouest de Komiža, accès à pied", desc:"Crique isolée à environ 1h de marche de Komiža par un sentier balisé, gros galets et eau très claire.", rec:"Réservé aux marcheurs motivés — prévoyez 2L d'eau et de bonnes chaussures."},
+
+  {cat:"vue", name:"Grotte Bleue (Bišević)", lat:42.9802472, lng:16.0220468, place_id:"ChIJhfTeAcG5NRMRzn5_WTEWSRY", price:"", zone:"Île de Biševo, en bateau depuis Komiža", desc:"Grotte marine où la lumière du soleil traverse l'eau et illumine l'intérieur d'un bleu argenté. Visite en petite barque, 5 à 10 minutes.", rec:"Partez avec le premier bateau (vers 7h) depuis Komiža pour éviter l'attente et la foule.", hero:true},
+  {cat:"vue", name:"Fort George — belvédère", lat:43.0744258, lng:16.1973502, place_id:"ChIJMc8fYwCXNRMRQSa1fC96dyY", price:"", zone:"Au-dessus de Vis ville", desc:"Fortin britanno-autrichien du XIXe siècle avec télescopes gratuits, vue sur toute la baie de Vis et l'îlot d'Host.", rec:"Idéal en fin d'après-midi, avant de dîner sur place au rooftop."},
+  {cat:"vue", name:"Panorama de Kut", lat:43.0577370, lng:16.2061151, place_id:"ChIJU5Z_8zGXNRMR0rv63PQqMfY", price:"", zone:"Colline au-dessus de Kut, Vis ville", desc:"Point de vue accessible à vélo ou à pied depuis le centre, vue plongeante sur le quartier vénitien de Kut et le port.", rec:"Parfait au moment de l'arrivée du ferry, vue superbe sur la baie."},
+  {cat:"vue", name:"Mont Hum", lat:43.0300000, lng:16.1183333, place_id:"ChIJKU2hNNK9NRMRlAv5HTTCN7A", price:"", zone:"Point culminant de l'île, 587 m", desc:"Le plus haut sommet de Vis, accessible en voiture ou à pied, vue à 360° sur Komiža, Hvar et la mer Adriatique.", rec:"Le meilleur coucher de soleil de l'île — prévoyez un coupe-vent, il fait frais en altitude.", hero:true},
+  {cat:"vue", name:"Grotte de Tito", lat:43.0370572, lng:16.1207880, place_id:"ChIJgf8fF8-9NRMRAuTmyZbGEzU", price:"", zone:"Sous le Mont Hum, Borovik", desc:"Ancien quartier général souterrain de Tito en 1944, aménagé avant sa rencontre avec Churchill. Accès par environ 200 marches.", rec:"Combinez avec la montée au Mont Hum, les deux sites se suivent sur le même sentier."},
+  {cat:"vue", name:"Vis ville — vieille ville", lat:43.0594788, lng:16.1863861, place_id:"ChIJvZn9yqiXNRMRssEmeWM-GDw", price:"", zone:"Centre historique", desc:"Ruelles pavées, façades vénitiennes, ancien chantier naval et front de mer animé — la capitale historique de l'île.", rec:"Flânez dans le quartier de Kut en fin d'après-midi, quand la pierre prend une teinte dorée."},
+];
+
+/* ---------------------------------------------------------------
+   CARTE LEAFLET — vraies tuiles OpenStreetMap, donc les rues,
+   sentiers et bâtiments apparaissent au fur et à mesure du zoom.
+--------------------------------------------------------------- */
+const map = L.map('map', {
+  zoomControl: false,
+  attributionControl: true,
+  minZoom: 10,
+  maxZoom: 19,
+  worldCopyJump:false,
+  maxBoundsViscosity: 0.6
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+const ISLAND_BOUNDS = L.latLngBounds([42.955,15.995],[43.095,16.265]);
+map.fitBounds(ISLAND_BOUNDS, { padding:[10,10] });
+// Bornes larges (marge généreuse) pour pouvoir explorer bien au-delà de l'île
+const PAN_BOUNDS = L.latLngBounds([42.55,15.35],[43.55,17.05]);
+map.setMaxBounds(PAN_BOUNDS);
+
+document.getElementById('zoomIn').addEventListener('click', ()=> map.zoomIn());
+document.getElementById('zoomOut').addEventListener('click', ()=> map.zoomOut());
+document.getElementById('zoomReset').addEventListener('click', ()=> map.fitBounds(ISLAND_BOUNDS, { padding:[10,10] }));
+
+/* ---------------------------------------------------------------
+   MARQUEURS
+--------------------------------------------------------------- */
+function makeIcon(p){
+  const cat = CATEGORIES[p.cat];
+  const size = p.hero ? 30 : 26;
+  return L.divIcon({
+    className: '',
+    iconSize: [size,size],
+    iconAnchor: [size/2, size/2],
+    html: `<div class="vis-pin${p.hero?' hero':''}" style="width:${size}px;height:${size}px;position:relative;">
+      <div class="base" style="background:${cat.color};">
+        <svg width="14" height="14" viewBox="-10 -10 20 20">${cat.icon}</svg>
+      </div>
+      ${p.hero ? '<span class="star">★</span>' : ''}
+    </div>`
+  });
+}
+
+const layerByCat = { resto: L.layerGroup(), plage: L.layerGroup(), vue: L.layerGroup() };
+const markerRefs = [];
+
+PLACES.forEach((p, idx)=>{
+  const marker = L.marker([p.lat, p.lng], { icon: makeIcon(p) });
+  marker.on('click', ()=> openDetail(idx));
+  marker.addTo(layerByCat[p.cat]);
+  markerRefs.push(marker);
+});
+Object.values(layerByCat).forEach(lg => lg.addTo(map));
+
+/* ---------------------------------------------------------------
+   LÉGENDE / FILTRES
+--------------------------------------------------------------- */
+const legendEl = document.getElementById('legend');
+const active = { resto:true, plage:true, vue:true };
+function counts(){ const c={resto:0,plage:0,vue:0}; PLACES.forEach(p=>c[p.cat]++); return c; }
+const CT = counts();
+
+Object.keys(CATEGORIES).forEach(key=>{
+  const cat = CATEGORIES[key];
+  const pill = document.createElement('div');
+  pill.className = 'pill';
+  pill.innerHTML = `<span class="dot" style="background:${cat.color}"></span>${cat.label} <span class="count">${CT[key]}</span>`;
+  pill.addEventListener('click', ()=>{
+    active[key] = !active[key];
+    pill.classList.toggle('off', !active[key]);
+    if(active[key]) map.addLayer(layerByCat[key]); else map.removeLayer(layerByCat[key]);
+    renderList();
+  });
+  legendEl.appendChild(pill);
+});
+
+/* ---------------------------------------------------------------
+   BOTTOM SHEET (liste + détail)
+--------------------------------------------------------------- */
+const sheet = document.getElementById('sheet');
+const sheetBody = document.getElementById('sheetBody');
+const sheetTitle = document.getElementById('sheetTitle');
+const sheetBack = document.getElementById('sheetBack');
+
+document.getElementById('listToggle').addEventListener('click', ()=>{ renderList(); sheet.classList.add('open'); });
+document.getElementById('sheetClose').addEventListener('click', ()=> sheet.classList.remove('open'));
+sheetBack.addEventListener('click', ()=>{ renderList(); });
+
+function gmapsUrl(p){ return `https://www.google.com/maps/place/?q=place_id:${p.place_id}`; }
+
+function renderList(){
+  sheetTitle.textContent = 'Tous les lieux';
+  sheetBack.style.display = 'none';
+  sheetBody.innerHTML = '';
+  const order = { resto:0, plage:1, vue:2 };
+  const items = PLACES.map((p,i)=>({p,i})).filter(o=>active[o.p.cat])
+    .sort((a,b)=> order[a.p.cat]-order[b.p.cat] || (b.p.hero?1:0)-(a.p.hero?1:0));
+  items.forEach(({p,i})=>{
+    const cat = CATEGORIES[p.cat];
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+      <div class="rdot" style="background:${cat.color}"><svg viewBox="-10 -10 20 20">${cat.icon}</svg></div>
+      <div>
+        <div class="rname">${p.name}${p.hero?' ★':''}</div>
+        <div class="rsub">${cat.label} · ${p.zone}</div>
+      </div>`;
+    row.addEventListener('click', ()=>{ openDetail(i); });
+    sheetBody.appendChild(row);
+  });
+}
+
+function openDetail(idx){
+  const p = PLACES[idx];
+  const cat = CATEGORIES[p.cat];
+  sheetTitle.textContent = cat.label;
+  sheetBack.style.display = 'flex';
+  sheetBody.innerHTML = `
+    <div class="pc">
+      <div class="pc-placeholder">${sceneFor(p.cat)}</div>
+      <div class="pc-body">
+        <div class="pc-eyebrow"><span>${cat.label}${p.hero?' ★ coup de cœur':''}</span><span>${p.price}</span></div>
+        <h3>${p.name}</h3>
+        <div class="meta"><span class="tag">${p.zone}</span></div>
+        <p>${p.desc}</p>
+        <div class="rec">${p.rec}</div>
+        <a class="gmaps" href="${gmapsUrl(p)}" target="_blank" rel="noopener">Voir les photos sur Google Maps →</a>
+      </div>
+    </div>`;
+  map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: 0.6 });
+  sheet.classList.add('open');
+}
+
+/* Petites scènes vectorielles intégrées (aucune dépendance réseau, donc
+   toujours fiables) illustrant chaque catégorie dans l'esprit carte au trésor. */
+function sceneFor(catKey){
+  if(catKey === 'plage') return `
+    <svg viewBox="0 0 400 170" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="skyP" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#EDE3CC"/><stop offset="100%" stop-color="#F2E9D3"/>
+        </linearGradient>
+        <linearGradient id="seaP" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#5CC2C8"/><stop offset="100%" stop-color="#2C8189"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="170" fill="url(#skyP)"/>
+      <circle cx="330" cy="42" r="22" fill="#E8C55A"/>
+      <path d="M0 95 L60 60 L95 100 L140 55 L400 95 V170 H0 Z" fill="#C9BFA6" opacity="0.55"/>
+      <rect x="0" y="95" width="400" height="75" fill="url(#seaP)"/>
+      <path d="M0 100 q20 -8 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" fill="none" stroke="#EDE3CC" stroke-width="2" opacity="0.5"/>
+      <path d="M0 118 q20 -7 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" fill="none" stroke="#EDE3CC" stroke-width="1.5" opacity="0.35"/>
+      <path d="M250 128 l14 -22 l6 0 l0 22 z" fill="#EDE3CC"/>
+      <rect x="269" y="106" width="1.5" height="24" fill="#123049"/>
+      <path d="M120 170 Q100 145 130 130 Q160 145 150 170 Z" fill="#D8C89F"/>
+    </svg>`;
+  if(catKey === 'vue') return `
+    <svg viewBox="0 0 400 170" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="skyV" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#3A5A46"/><stop offset="100%" stop-color="#E8C55A"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="170" fill="url(#skyV)"/>
+      <circle cx="200" cy="95" r="34" fill="#F2E9D3" opacity="0.9"/>
+      <path d="M0 140 L70 70 L110 110 L170 55 L230 120 L280 85 L340 130 L400 100 V170 H0 Z" fill="#1B3E5C"/>
+      <path d="M0 155 L90 115 L150 140 L220 105 L300 145 L400 120 V170 H0 Z" fill="#0A1D2B"/>
+      <path d="M60 50 q6 -6 12 0" stroke="#EDE3CC" stroke-width="2" fill="none" opacity="0.7"/>
+      <path d="M100 40 q6 -6 12 0" stroke="#EDE3CC" stroke-width="2" fill="none" opacity="0.5"/>
+    </svg>`;
+  // resto
+  return `
+    <svg viewBox="0 0 400 170" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="skyR" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#C1603C"/><stop offset="100%" stop-color="#7A3A22"/>
+        </linearGradient>
+      </defs>
+      <rect width="400" height="170" fill="url(#skyR)"/>
+      <g opacity="0.5">
+        <circle cx="40" cy="30" r="4" fill="#E8C55A"/><circle cx="90" cy="22" r="4" fill="#E8C55A"/>
+        <circle cx="140" cy="30" r="4" fill="#E8C55A"/><circle cx="190" cy="20" r="4" fill="#E8C55A"/>
+        <circle cx="240" cy="30" r="4" fill="#E8C55A"/><circle cx="290" cy="20" r="4" fill="#E8C55A"/>
+        <circle cx="340" cy="30" r="4" fill="#E8C55A"/>
+        <path d="M20 25 Q65 5 110 25 Q155 5 200 25 Q245 5 290 25 Q320 12 360 25" stroke="#E8C55A" stroke-width="1.5" fill="none"/>
+      </g>
+      <ellipse cx="200" cy="128" rx="90" ry="14" fill="#EDE3CC"/>
+      <ellipse cx="200" cy="128" rx="60" ry="9" fill="none" stroke="#C1603C" stroke-width="2" opacity="0.5"/>
+      <rect x="110" y="95" width="4" height="34" rx="2" fill="#EDE3CC"/>
+      <path d="M104 95 v14 M110 95 v14 M116 95 v14" stroke="#EDE3CC" stroke-width="3" stroke-linecap="round"/>
+      <path d="M286 95 q10 0 10 12 q0 10 -10 12 v10" stroke="#EDE3CC" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M190 95 q-4 -14 4 -20 M200 95 q0 -16 0 -22 M210 95 q4 -14 -4 -20" stroke="#F2E9D3" stroke-width="2" fill="none" opacity="0.6" stroke-linecap="round"/>
+    </svg>`;
+}
+
+renderList();
+</script>
+</body>
+</html>
