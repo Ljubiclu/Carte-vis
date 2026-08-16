@@ -223,23 +223,35 @@
   .row .rsub{ font-size:11.5px; color:var(--parchment-dim); margin-top:1px; }
 
   .pc{ padding: 0 0 10px 0; }
+  .pc-gallery-wrap{ position:relative; }
   .pc-gallery{
     display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
-    border-radius: 16px 16px 0 0; height:190px; background: var(--ink-2);
+    border-radius: 16px 16px 0 0; height:230px;
+    background: linear-gradient(160deg, var(--ink-3), var(--ink));
     -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
   .pc-gallery::-webkit-scrollbar{ display:none; }
   .pc-gallery img.pc-photo{
-    scroll-snap-align:start; flex:0 0 100%; width:100%; height:190px;
-    object-fit:cover; display:none;
+    scroll-snap-align:start; flex:0 0 100%; width:100%; height:230px;
+    object-fit:contain; display:none;
   }
+  .pc-gallery-nav{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(10,29,43,0.55); border:1px solid rgba(237,227,204,0.35);
+    color:var(--parchment); font-size:16px; display:flex; align-items:center; justify-content:center;
+    backdrop-filter: blur(2px); z-index:5; -webkit-user-select:none; user-select:none;
+  }
+  .pc-gallery-nav:active{ background:rgba(10,29,43,0.8); }
+  .pc-gallery-nav.prev{ left:8px; }
+  .pc-gallery-nav.next{ right:8px; }
   .pc-photo-credit{
     font-family:'JetBrains Mono', monospace; font-size:9px; color: var(--parchment-dim);
     opacity:0.7; text-align:right; padding: 3px 12px 0 0;
   }
   .pc-photo-credit a{ color: var(--parchment-dim); }
   .pc-placeholder{
-    width:100%; height:190px; border-radius:16px 16px 0 0;
+    width:100%; height:230px; border-radius:16px 16px 0 0;
     position:relative; overflow:hidden;
   }
   .pc-placeholder svg{ width:100%; height:100%; display:block; }
@@ -516,7 +528,15 @@ function buildGallery(p){
     `<img class="pc-photo" src="${src}" data-gallery="${galleryId}" alt="${p.name}"
        loading="lazy" onload="galleryImgLoad(this)" onerror="galleryImgError(this)">`
   ).join('');
-  return `<div class="pc-gallery" id="${galleryId}">${imgsHtml}</div>`;
+  return `<div class="pc-gallery-wrap">
+    <div class="pc-gallery" id="${galleryId}">${imgsHtml}</div>
+    <div class="pc-gallery-nav prev" onclick="scrollGallery('${galleryId}',-1)">‹</div>
+    <div class="pc-gallery-nav next" onclick="scrollGallery('${galleryId}',1)">›</div>
+  </div>`;
+}
+function scrollGallery(galleryId, dir){
+  const el = document.getElementById(galleryId);
+  if(el) el.scrollBy({ left: dir * el.clientWidth, behavior: 'smooth' });
 }
 function galleryImgLoad(imgEl){
   imgEl.style.display = 'block';
@@ -529,7 +549,8 @@ function galleryImgError(imgEl){
   if(!st) return;
   st.done++;
   if(st.done >= st.total && st.ok === 0){
-    const wrap = document.getElementById(imgEl.dataset.gallery);
+    const gallery = document.getElementById(imgEl.dataset.gallery);
+    const wrap = gallery ? gallery.closest('.pc-gallery-wrap') : null;
     if(wrap){ wrap.outerHTML = `<div class="pc-placeholder">${sceneFor(st.catKey)}</div>`; }
   }
 }
