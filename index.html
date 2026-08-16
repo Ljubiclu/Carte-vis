@@ -526,7 +526,7 @@ function buildGallery(p){
   galleryState[galleryId] = { total: candidates.length, done: 0, ok: 0, catKey: p.cat };
   const imgsHtml = candidates.map(src =>
     `<img class="pc-photo" src="${src}" data-gallery="${galleryId}" alt="${p.name}"
-       loading="lazy" onload="galleryImgLoad(this)" onerror="galleryImgError(this)">`
+       onload="galleryImgLoad(this)" onerror="galleryImgError(this)">`
   ).join('');
   return `<div class="pc-gallery-wrap">
     <div class="pc-gallery" id="${galleryId}">${imgsHtml}</div>
