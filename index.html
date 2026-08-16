@@ -223,8 +223,23 @@
   .row .rsub{ font-size:11.5px; color:var(--parchment-dim); margin-top:1px; }
 
   .pc{ padding: 0 0 10px 0; }
+  .pc-gallery{
+    display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+    border-radius: 16px 16px 0 0; height:190px; background: var(--ink-2);
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .pc-gallery::-webkit-scrollbar{ display:none; }
+  .pc-gallery img.pc-photo{
+    scroll-snap-align:start; flex:0 0 100%; width:100%; height:190px;
+    object-fit:cover; display:none;
+  }
+  .pc-photo-credit{
+    font-family:'JetBrains Mono', monospace; font-size:9px; color: var(--parchment-dim);
+    opacity:0.7; text-align:right; padding: 3px 12px 0 0;
+  }
+  .pc-photo-credit a{ color: var(--parchment-dim); }
   .pc-placeholder{
-    width:100%; height:170px; border-radius:16px 16px 0 0;
+    width:100%; height:190px; border-radius:16px 16px 0 0;
     position:relative; overflow:hidden;
   }
   .pc-placeholder svg{ width:100%; height:100%; display:block; }
@@ -320,7 +335,9 @@ const PLACES = [
   {cat:"resto", name:"Peškarija 1911", lat:43.0591926, lng:16.1874856, place_id:"ChIJf6tuXuCXNRMR4Zk3yK0JNNg", price:"€€€€", zone:"Riva, Vis ville", desc:"Ancienne halle aux poissons transformée en table gastronomique autour d'un comptoir en pierre centenaire ; cuisine créative et très travaillée.", rec:"La meilleure adresse de fine dining sur l'île — réservation quasi obligatoire en été.", hero:true},
   {cat:"resto", name:"Lola Bar", lat:43.0594333, lng:16.1858295, place_id:"ChIJFey8-baXNRMRGggc2gCpVN8", price:"€€€€", zone:"Vis ville", desc:"Cuisine créative méditerranéenne dans un cadre soigné, cocktails travaillés, huile d'olive maison à ne pas manquer.", rec:"Un excellent choix pour un dîner un peu plus habillé qu'une konoba classique."},
   {cat:"resto", name:"Pojoda", lat:43.0581199, lng:16.1988121, place_id:"ChIJvZn9yqiXNRMRct1d_EM11us", price:"€€€€", zone:"Kut, Vis ville", desc:"Jardin sous les citronniers, cuisine de poisson frais choisi à la table, belle carte de vugava (cépage local blanc de Vis).", rec:"Demandez la sélection du jour au poids plutôt que la carte — c'est là qu'est la qualité."},
-  {cat:"resto", name:"Fort George", lat:43.0739591, lng:16.1965975, place_id:"ChIJLw72c5mXNRMRnGKsszf0U88", price:"€€€", zone:"Fortin autrichien, au-dessus de Vis ville", desc:"Dîner dans une forteresse du XIXe siècle avec vue sur Hvar et Brač ; aussi un excellent rooftop pour le coucher de soleil.", rec:"Montez tôt pour visiter le musée et le toit avant le service du soir.", hero:true},
+  {cat:"resto", name:"Fort George", lat:43.0739591, lng:16.1965975, place_id:"ChIJLw72c5mXNRMRnGKsszf0U88", price:"€€€", zone:"Fortin autrichien, au-dessus de Vis ville", desc:"Dîner dans une forteresse du XIXe siècle avec vue sur Hvar et Brač ; aussi un excellent rooftop pour le coucher de soleil.", rec:"Montez tôt pour visiter le musée et le toit avant le service du soir.", hero:true,
+    photo:"https://commons.wikimedia.org/wiki/Special:FilePath/George_the_Third_Fortress_on_Vis_island,_Croatia_(48693840901).jpg?width=900",
+    photoCredit:"https://commons.wikimedia.org/wiki/File:George_the_Third_Fortress_on_Vis_island,_Croatia_(48693840901).jpg"},
   {cat:"resto", name:"Buffet Vis", lat:43.0604144, lng:16.1848233, place_id:"ChIJR3HTALeXNRMRsVzKueyZUn0", price:"€€€€", zone:"Ravnica, Vis ville", desc:"Institution familiale tenue par Tonči : plateau de poisson composé selon la pêche du jour, vin et huile d'olive maison.", rec:"Laissez le patron composer votre assiette — il connaît la pêche du jour mieux que n'importe quelle carte.", hero:true},
   {cat:"resto", name:"Villa Kaliopa", lat:43.0570602, lng:16.1961174, place_id:"ChIJl7mdLq-XNRMR8A_oziR-K7E", price:"€€€€", zone:"Jardin, Vis ville", desc:"Dîner dans un jardin planté de sculptures antiques et de palmiers centenaires, poisson grillé au feu de bois, cadre unique sur l'île.", rec:"Réservez pour la table dans le jardin — c'est autant l'expérience que le repas.", hero:true},
   {cat:"resto", name:"Konoba Roki's Fire", lat:43.0594258, lng:16.1561269, place_id:"ChIJcUVbnmqWNRMRj1apG0T9xNw", price:"€€€€", zone:"Dol, à l'intérieur des terres", desc:"La table la plus mythique de l'île : peka de poulpe cuite sous la cloche de braises, four à bois traditionnel, ambiance familiale. Navette proposée depuis Vis.", rec:"Réservez et pré-commandez la peka au moins la veille — c'est indispensable ici.", hero:true},
@@ -336,7 +353,9 @@ const PLACES = [
   {cat:"resto", name:"Konoba Vatrica", lat:43.0589606, lng:16.1990612, place_id:"ChIJL3yJM6-XNRMRtpfgI9AaCy4", price:"€€€", zone:"Riva, Vis ville", desc:"Cuisine méditerranéenne soignée sur le front de mer, risotto à l'encre de seiche et plateaux de fruits de mer partagés très appréciés.", rec:"Service particulièrement attentif même les soirs complets — bonne option si Peškarija est plein."},
   {cat:"resto", name:"Karijola Pizza", lat:43.0581169, lng:16.1917467, place_id:"ChIJCePOvrGXNRMR8XCLcITP1a8", price:"€€", zone:"Près de l'église, Vis ville", desc:"Pizzas fines et croustillantes au feu de bois, bonne sélection de bières artisanales, vue sur le port.", rec:"Une valeur sûre et rapide si vous voulez éviter l'attente des tables gastronomiques."},
 
-  {cat:"plage", name:"Stiniva", lat:43.0213823, lng:16.1715648, place_id:"ChIJLULeywiWNRMRwLTnLfBCkqk", price:"", zone:"Côte sud, accès à pied ou en bateau", desc:"Crique cachée entre deux parois rocheuses, souvent citée parmi les plus belles plages d'Europe. Accès par un sentier de 20 minutes assez raide.", rec:"Venez tôt le matin — la foule et les bateaux arrivent en milieu de journée.", hero:true},
+  {cat:"plage", name:"Stiniva", lat:43.0213823, lng:16.1715648, place_id:"ChIJLULeywiWNRMRwLTnLfBCkqk", price:"", zone:"Côte sud, accès à pied ou en bateau", desc:"Crique cachée entre deux parois rocheuses, souvent citée parmi les plus belles plages d'Europe. Accès par un sentier de 20 minutes assez raide.", rec:"Venez tôt le matin — la foule et les bateaux arrivent en milieu de journée.", hero:true,
+    photo:"https://commons.wikimedia.org/wiki/Special:FilePath/Stiniva_beach,_island_of_Vis,_Croatia_(3).jpg?width=900",
+    photoCredit:"https://commons.wikimedia.org/wiki/File:Stiniva_beach,_island_of_Vis,_Croatia_(3).jpg"},
   {cat:"plage", name:"Srebrna", lat:43.0205077, lng:16.2055618, place_id:"ChIJj-_GVX2WNRMRZXezffqx6dg", price:"", zone:"Rukavac, côte sud", desc:"Galets blancs et eau turquoise, entourée d'une pinède ombragée, considérée par beaucoup comme la plus belle plage de l'île.", rec:"Prenez un coussin ou une serviette épaisse, les galets sont gros.", hero:true},
   {cat:"plage", name:"Prirovo", lat:43.0632206, lng:16.1890193, place_id:"ChIJucdbwLuXNRMRFrziZS2pZTM", price:"", zone:"Vis ville, à pied du port", desc:"Petite plage de galets à deux pas du centre-ville, vue sur l'église et le port, pratique en attendant un ferry.", rec:"Le meilleur compromis si vous logez en ville et voulez une baignade rapide."},
   {cat:"plage", name:"Grandovac", lat:43.0683614, lng:16.2061902, place_id:"ChIJJ_8YtAqXNRMRrdsFVUZWIIo", price:"", zone:"15 min à pied de Vis ville", desc:"Plage naturelle sans aucune infrastructure, eau limpide, petit bunker abandonné à proximité.", rec:"Pour un moment plus sauvage, à 15 minutes de marche du centre."},
@@ -345,7 +364,9 @@ const PLACES = [
   {cat:"plage", name:"Milna", lat:43.0403752, lng:16.2305832, place_id:"ChIJoY5Ex92WNRMRs43oAsfOZ18", price:"", zone:"Sud-est de l'île", desc:"L'une des rares plages de sable de Vis, eau turquoise peu profonde, location de kayak et navette vers l'îlot de Budikovac.", rec:"Très adaptée aux enfants grâce au fond sableux et à l'eau calme."},
   {cat:"plage", name:"Perna", lat:43.0465360, lng:16.0599414, place_id:"ChIJhyg3l_a7NRMR0EqPmWEVgiw", price:"", zone:"Ouest de Komiža, accès à pied", desc:"Crique isolée à environ 1h de marche de Komiža par un sentier balisé, gros galets et eau très claire.", rec:"Réservé aux marcheurs motivés — prévoyez 2L d'eau et de bonnes chaussures."},
 
-  {cat:"vue", name:"Grotte Bleue (Bišević)", lat:42.9802472, lng:16.0220468, place_id:"ChIJhfTeAcG5NRMRzn5_WTEWSRY", price:"", zone:"Île de Biševo, en bateau depuis Komiža", desc:"Grotte marine où la lumière du soleil traverse l'eau et illumine l'intérieur d'un bleu argenté. Visite en petite barque, 5 à 10 minutes.", rec:"Partez avec le premier bateau (vers 7h) depuis Komiža pour éviter l'attente et la foule.", hero:true},
+  {cat:"vue", name:"Grotte Bleue (Bišević)", lat:42.9802472, lng:16.0220468, place_id:"ChIJhfTeAcG5NRMRzn5_WTEWSRY", price:"", zone:"Île de Biševo, en bateau depuis Komiža", desc:"Grotte marine où la lumière du soleil traverse l'eau et illumine l'intérieur d'un bleu argenté. Visite en petite barque, 5 à 10 minutes.", rec:"Partez avec le premier bateau (vers 7h) depuis Komiža pour éviter l'attente et la foule.", hero:true,
+    photo:"https://commons.wikimedia.org/wiki/Special:FilePath/Blue_Cave_on_Bisevo_island_in_Croatia_(48693932812).jpg?width=900",
+    photoCredit:"https://commons.wikimedia.org/wiki/File:Blue_Cave_on_Bisevo_island_in_Croatia_(48693932812).jpg"},
   {cat:"vue", name:"Fort George — belvédère", lat:43.0744258, lng:16.1973502, place_id:"ChIJMc8fYwCXNRMRQSa1fC96dyY", price:"", zone:"Au-dessus de Vis ville", desc:"Fortin britanno-autrichien du XIXe siècle avec télescopes gratuits, vue sur toute la baie de Vis et l'îlot d'Host.", rec:"Idéal en fin d'après-midi, avant de dîner sur place au rooftop."},
   {cat:"vue", name:"Panorama de Kut", lat:43.0577370, lng:16.2061151, place_id:"ChIJU5Z_8zGXNRMR0rv63PQqMfY", price:"", zone:"Colline au-dessus de Kut, Vis ville", desc:"Point de vue accessible à vélo ou à pied depuis le centre, vue plongeante sur le quartier vénitien de Kut et le port.", rec:"Parfait au moment de l'arrivée du ferry, vue superbe sur la baie."},
   {cat:"vue", name:"Mont Hum", lat:43.0300000, lng:16.1183333, place_id:"ChIJKU2hNNK9NRMRlAv5HTTCN7A", price:"", zone:"Point culminant de l'île, 587 m", desc:"Le plus haut sommet de Vis, accessible en voiture ou à pied, vue à 360° sur Komiža, Hvar et la mer Adriatique.", rec:"Le meilleur coucher de soleil de l'île — prévoyez un coupe-vent, il fait frais en altitude.", hero:true},
@@ -469,6 +490,50 @@ function renderList(){
   });
 }
 
+function slugify(str){
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-+|-+$/g,'');
+}
+
+const galleryState = {};
+let galleryCounter = 0;
+
+function buildGallery(p){
+  const slug = slugify(p.name);
+  // Ordre : photo(s) perso images/<slug>-1.jpg, -2.jpg... (jusqu'à 6),
+  // puis images/<slug>.jpg (sans numéro, au cas où), puis la photo libre
+  // de droits si définie. Chaque source manquante est simplement ignorée.
+  const candidates = [];
+  for(let i=1;i<=6;i++) candidates.push(`images/${slug}-${i}.jpg`);
+  candidates.push(`images/${slug}.jpg`);
+  if(p.photo) candidates.push(p.photo);
+
+  const galleryId = 'gal-' + (++galleryCounter);
+  galleryState[galleryId] = { total: candidates.length, done: 0, ok: 0, catKey: p.cat };
+  const imgsHtml = candidates.map(src =>
+    `<img class="pc-photo" src="${src}" data-gallery="${galleryId}" alt="${p.name}"
+       loading="lazy" onload="galleryImgLoad(this)" onerror="galleryImgError(this)">`
+  ).join('');
+  return `<div class="pc-gallery" id="${galleryId}">${imgsHtml}</div>`;
+}
+function galleryImgLoad(imgEl){
+  imgEl.style.display = 'block';
+  const st = galleryState[imgEl.dataset.gallery];
+  if(st){ st.done++; st.ok++; }
+}
+function galleryImgError(imgEl){
+  imgEl.remove();
+  const st = galleryState[imgEl.dataset.gallery];
+  if(!st) return;
+  st.done++;
+  if(st.done >= st.total && st.ok === 0){
+    const wrap = document.getElementById(imgEl.dataset.gallery);
+    if(wrap){ wrap.outerHTML = `<div class="pc-placeholder">${sceneFor(st.catKey)}</div>`; }
+  }
+}
+
 function openDetail(idx){
   const p = PLACES[idx];
   const cat = CATEGORIES[p.cat];
@@ -476,7 +541,7 @@ function openDetail(idx){
   sheetBack.style.display = 'flex';
   sheetBody.innerHTML = `
     <div class="pc">
-      <div class="pc-placeholder">${sceneFor(p.cat)}</div>
+      ${buildGallery(p)}
       <div class="pc-body">
         <div class="pc-eyebrow"><span>${cat.label}${p.hero?' ★ coup de cœur':''}</span><span>${p.price}</span></div>
         <h3>${p.name}</h3>
